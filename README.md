@@ -11,16 +11,41 @@
 
 ### Compatibility with `cut`
 
-It is a bug for `jolsat` given **any** input and any invocation containing only `-d` and `-f` to produce different output from `cut` with the same parameters.
+It is a bug for `jolsat`:
+
+- given **any** input
+- with **any** invocation containing only `-d` and `-f` parameters, properly formed
+- to produce different output to `cut`, called with the same parameters and input.
+
+NB all short-form parameters must have a space seperating them from their values. i.e. `jolsat -d ' ' -f 1-10` as opposed to `jolsat -d' ' -f1-10`. Both forms are acceptable to `cut`; compatibility is only assured with the space-containing form.
 
 There is one exception to this: where the `-f` parameter uses `jolsat`'s enhanced ability to repeat or re-order output fields. For `cut` compatibility the `-f` parameter must only reference increasing field numbers.
 
-This also explicitly rules out the cases where `cut` is invoked with no parameters, or`cut -d <CHAR>` is invoked *without* a `-f` parameter. Both of these `cut` invocations produce an error, but `jolsat` treats both as a request to behave exactly like `cat`: to mirror stdin to stdout, without erroring. This allows for easier incremental exploration of an input stream, where the field list input param may be built up over time, and is a further byte-for-byte compatibility guarantee: it is a bug for `jolsat` or any `jolsat -d <CHAR>` invocations to produce different output than `cat` does, given the same input steam.
+This also explicitly rules out the cases where `cut` is invoked with no parameters, or`cut -d <CHAR>` is invoked *without* a `-f` parameter. Both of these `cut` invocations produce an error, but `jolsat` treats both as a request to behave exactly like `cut -f 1-`: to mirror stdin to stdout, without erroring. This allows for easier incremental exploration of an input stream, where the field list input param may be built up over time, and is a further byte-for-byte compatibility guarantee:
+
+It is a bug for `jolsat`:
+
+- with **any** input
+- when invoked with no parameters
+- or invoked with only a properly formed `-d <CHAR>` parameter
+- to produce different output to `cut -f1-`, given the same input steam.
 
 ## Usage
 
+### No arguments
+
 ```
 $ seq 1 20 | xargs -n5 | jolsat
+1 2 3 4 5
+6 7 8 9 10
+11 12 13 14 15
+16 17 18 19 20
+```
+
+### 1 argument: -d
+
+```
+$ seq 1 20 | xargs -n5 | jolsat -d ' '
 1 2 3 4 5
 6 7 8 9 10
 11 12 13 14 15
