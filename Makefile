@@ -5,3 +5,6 @@ test: jolsat
 
 jolsat:	jolsat.go
 	go build
+
+release: test
+	go build -ldflags="-s -w"
