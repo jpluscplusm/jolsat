@@ -72,6 +72,7 @@ func main() {
 
 	delimiter := flag.String("d", "\t", "Word delimiter")
 	fieldFlag := flag.String("f", "1-", "Field list")
+	channelBufferSize := flag.Int("b", 99, "Buffer size")
 	flag.Parse()
 
 	fieldList := strings.Split(*fieldFlag, ",")
@@ -84,8 +85,8 @@ func main() {
 	for i, f := range fields {
 		first, last := explodeFieldRange(f)
 		processors = append(processors, FieldProcessor{
-			Input:  make(chan []string),
-			Output: make(chan []string),
+			Input:  make(chan []string, *channelBufferSize),
+			Output: make(chan []string, *channelBufferSize),
 		})
 		processors[i].Run = func(in, out chan []string) {
 
