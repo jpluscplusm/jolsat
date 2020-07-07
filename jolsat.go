@@ -18,11 +18,11 @@ type FieldProcessor struct {
 }
 
 var (
-	integerOnly          = regexp.MustCompile("^([0-9]+)$")
-	dashInteger          = regexp.MustCompile("^-([0-9]+)$")
-	integerDash          = regexp.MustCompile("^([0-9]+)-$")
-	integerDashInteger   = regexp.MustCompile("^([0-9]+)-([0-9]+)$")
-	integerColonAnything = regexp.MustCompile("^([0-9]+):")
+	integerOnly          = regexp.MustCompile(`^([[:digit:]]+)$`)
+	dashInteger          = regexp.MustCompile(`^-([[:digit:]]+)$`)
+	integerDash          = regexp.MustCompile(`^([[:digit:]]+)-$`)
+	integerDashInteger   = regexp.MustCompile(`^([[:digit:]]+)-([[:digit:]]+)$`)
+	integerColonAnything = regexp.MustCompile(`^([[:digit:]]+):`)
 	p                    = fmt.Println
 	I                    = func(s string) int { a, _ := strconv.Atoi(s); return a }
 )
