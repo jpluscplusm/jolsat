@@ -32,7 +32,7 @@ It is a bug for `jolsat`:
 
 ## Usage
 
-### No arguments
+### Basic arguments
 
 ```
 $ seq 1 20 | xargs -n5 | jolsat
@@ -40,14 +40,19 @@ $ seq 1 20 | xargs -n5 | jolsat
 6 7 8 9 10
 11 12 13 14 15
 16 17 18 19 20
-```
-
-### 1 argument: -d
-
-```
 $ seq 1 20 | xargs -n5 | jolsat -d ' '
 1 2 3 4 5
 6 7 8 9 10
 11 12 13 14 15
 16 17 18 19 20
+```
+
+### Specifying fields and field ranges, compatible with `cut`
+
+```
+$ seq 1 20 | xargs -n5 | jolsat -d ' ' -f 2,4-5
+2 4 5
+7 9 10
+12 14 15
+17 19 20
 ```
