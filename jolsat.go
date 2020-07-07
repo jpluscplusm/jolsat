@@ -72,6 +72,7 @@ func main() {
 	var (
 		wg         = new(sync.WaitGroup)
 		processors []FieldProcessor
+		emptySlice = []string{}
 	)
 
 	delimiter := flag.String("d", "\t", "Word delimiter")
@@ -93,8 +94,6 @@ func main() {
 			Output: make(chan []string, *channelBufferSize),
 		})
 		processors[i].Run = func(in, out chan []string) {
-
-			emptySlice := make([]string, 0)
 
 			for x := range in {
 				var start, end, lenx int
