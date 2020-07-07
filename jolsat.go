@@ -24,6 +24,7 @@ var (
 	integerDashInteger   = regexp.MustCompile("^([0-9]+)-([0-9]+)$")
 	integerColonAnything = regexp.MustCompile("^([0-9]+):")
 	p                    = fmt.Println
+	I                    = func(s string) int { a, _ := strconv.Atoi(s); return a }
 )
 
 // explodeFieldRange returns the 2 ints representing the requested field range
@@ -39,8 +40,6 @@ var (
 //   integer:stat[option1+option2]
 //   integer:stat[param1:setting1+option1+param2:setting2]
 func explodeFieldRange(fieldRange string) (first, last int) {
-
-	I := func(s string) int { a, _ := strconv.Atoi(s); return a }
 
 	switch {
 	case integerOnly.MatchString(fieldRange):
