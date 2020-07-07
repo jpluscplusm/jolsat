@@ -19,6 +19,7 @@ type FieldProcessor struct {
 
 var (
 	integerOnly          = regexp.MustCompile(`^([[:digit:]]+)$`)
+	caretInteger         = regexp.MustCompile(`^\^([[:digit:]]+)$`)
 	dashInteger          = regexp.MustCompile(`^-([[:digit:]]+)$`)
 	integerDash          = regexp.MustCompile(`^([[:digit:]]+)-$`)
 	integerDashInteger   = regexp.MustCompile(`^([[:digit:]]+)-([[:digit:]]+)$`)
@@ -35,6 +36,7 @@ var (
 //   integer- (e.g. "5-")         meaning "field 5 to the last field of the line, inclusive"
 //   integer-integer (e.g. "3-5") meaning "field 3 to field 5, inclusive"
 //  Type B: jolsat-specific:
+//   ^integer: (e.g. "^2") meaning field 2, counting back from the end of the line
 //   integer:stat
 //   integer:stat[option]
 //   integer:stat[option1+option2]
@@ -54,6 +56,9 @@ func explodeFieldRange(fieldRange string) (first, last int) {
 	case integerDashInteger.MatchString(fieldRange):
 		first = I(integerDashInteger.FindStringSubmatch(fieldRange)[1])
 		last = I(integerDashInteger.FindStringSubmatch(fieldRange)[2])
+	case caretInteger.MatchString(fieldRange):
+		int1 := I(caretInteger.FindStringSubmatch(fieldRange)[1])
+		first, last = -int1, -int1
 	case integerColonAnything.MatchString(fieldRange):
 		int1 := I(integerColonAnything.FindStringSubmatch(fieldRange)[1])
 		first, last = int1, int1
@@ -94,23 +99,27 @@ func main() {
 			for x := range in {
 				var start, end, lenx int
 				lenx = len(x)
-				start = first - 1
 				// Quick escapes: empty input or not enough input for our range
 				switch {
 				case lenx == 0, first > lenx:
 					out <- emptySlice
 					continue
 				}
-				if last == 0 {
-					end = lenx - 1
-				} else {
-					end = last - 1
+				if first > 0 { // positive fields, possibly ranges
+					start = first - 1
+					if last == 0 {
+						end = lenx - 1
+					} else {
+						end = last - 1
+					}
+					if end > lenx-1 {
+						end = lenx - 1
+					}
+					//p(start, end, lenx)
+					out <- x[start : end+1]
+				} else { // negative/count-backwards fields, *not* ranges (yet!)
+					panic("Can't deal with count-back fields yet!")
 				}
-				if end > lenx-1 {
-					end = lenx - 1
-				}
-				//p(start, end, lenx)
-				out <- x[start : end+1]
 			}
 			close(out)
 		}
