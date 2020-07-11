@@ -3,12 +3,12 @@
 include test.mk
 
 jolsat:	cmd/jolsat/jolsat.go
-	go build cmd/jolsat/*.go
+	go build $(BUILD_FLAGS) cmd/jolsat/*.go
 
-release: test
-	go build -ldflags="-s -w"
+release: BUILD_FLAGS=-ldflags="-s -w"
+release: clean test
 
 build: jolsat
 
 clean:
-	rm jolsat
+	rm -f jolsat
