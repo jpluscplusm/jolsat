@@ -12,6 +12,10 @@ import (
 	"github.com/jpluscplusm/jolsat/internal/jolsat"
 )
 
+var (
+	p = fmt.Println
+)
+
 func main() {
 	delimiter := flag.String("d", "\t", "Word delimiter")
 	fieldFlag := flag.String("f", "1-", "Field list")
@@ -19,55 +23,53 @@ func main() {
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	var (
-		fields = strings.Split(*fieldFlag, ",")
-		fanOut []chan []string
-		fanIn  []chan []string
-		//p      = fmt.Println
-	)
+	toProcessors, toDisplay := runProcessors(strings.Split(*fieldFlag, ","))
+	go fanOut(os.Stdin, toProcessors, *delimiter)
+	fanIn(os.Stdout, toDisplay, *delimiter)
 
+}
+
+func runProcessors(fields []string) (toProcessors, toDisplay []chan []string) {
 	for _, f := range fields {
 		fp, ok := jolsat.NewFieldProcessor(f)
-		switch ok {
-		case true:
+		if ok {
 			toFP := make(chan []string, 100)
 			fromFP := make(chan []string, 100)
-			fanIn = append(fanIn, fromFP)
-			fanOut = append(fanOut, toFP)
+			toProcessors = append(toProcessors, toFP)
+			toDisplay = append(toDisplay, fromFP)
 			go fp.Run(toFP, fromFP)
-		case false:
+		} else {
 			panic("Couldn't make an FP with spec '" + f + "'")
 		}
 	}
+	return
+}
 
-	go func(r io.Reader, receivers []chan []string, delimiter string) {
-		scanner := bufio.NewScanner(r)
-
-		for scanner.Scan() {
-			tokens := strings.Split(scanner.Text(), delimiter)
-			for _, r := range receivers {
-				r <- tokens
-			}
-		}
+func fanOut(r io.Reader, receivers []chan []string, delimiter string) {
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		tokens := strings.Split(scanner.Text(), delimiter)
 		for _, r := range receivers {
-			close(r)
+			r <- tokens
 		}
-	}(os.Stdin, fanOut, *delimiter)
+	}
+	for _, r := range receivers {
+		close(r)
+	}
+}
 
-	var output []string
-	for open := true; open; {
-		for i, s := range fanIn {
-			output, open = <-s
+func fanIn(w io.Writer, senders []chan []string, delimiter string) {
+	for {
+		for i, sender := range senders {
+			output, open := <-sender
 			if !open {
-				break
+				return
 			}
 			if i > 0 && len(output) > 0 {
-				fmt.Print(*delimiter)
+				fmt.Fprint(w, delimiter)
 			}
-			fmt.Print(strings.Join(output, *delimiter))
+			fmt.Fprint(w, strings.Join(output, delimiter))
 		}
-		if open {
-			fmt.Print("\n")
-		}
+		fmt.Fprintln(w)
 	}
 }
