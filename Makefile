@@ -2,8 +2,8 @@
 
 include test.mk
 
-jolsat:	jolsat.go
-	go build
+jolsat:	cmd/jolsat/jolsat.go
+	go build cmd/jolsat/*.go
 
 release: test
 	go build -ldflags="-s -w"

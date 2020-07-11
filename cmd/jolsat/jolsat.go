@@ -4,158 +4,67 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"os"
-	"regexp"
-	"strconv"
 	"strings"
-	"sync"
+
+	"github.com/jpluscplusm/jolsat/internal/jolsat"
 )
-
-type FieldProcessor struct {
-	Run    func(in, out chan []string)
-	Input  chan []string
-	Output chan []string
-}
-
-var (
-	integerOnly          = regexp.MustCompile(`^([[:digit:]]+)$`)
-	caretInteger         = regexp.MustCompile(`^\^([[:digit:]]+)$`)
-	dashInteger          = regexp.MustCompile(`^-([[:digit:]]+)$`)
-	integerDash          = regexp.MustCompile(`^([[:digit:]]+)-$`)
-	integerDashInteger   = regexp.MustCompile(`^([[:digit:]]+)-([[:digit:]]+)$`)
-	integerColonAnything = regexp.MustCompile(`^([[:digit:]]+):`)
-	p                    = fmt.Println
-	I                    = func(s string) int { a, _ := strconv.Atoi(s); return a }
-)
-
-// explodeFieldRange returns the 2 ints representing the requested field range
-// Permitted patterns for field:
-//  Type A: exactly analogous to `cut (1)`:
-//   integer  (e.g. "4")          meaning "field 4 only"
-//   -integer (e.g. "-3")         meaning "the first field of the line to field 3, inclusive"
-//   integer- (e.g. "5-")         meaning "field 5 to the last field of the line, inclusive"
-//   integer-integer (e.g. "3-5") meaning "field 3 to field 5, inclusive"
-//  Type B: jolsat-specific:
-//   ^integer: (e.g. "^2") meaning field 2, counting back from the end of the line
-//   integer:stat
-//   integer:stat[option]
-//   integer:stat[option1+option2]
-//   integer:stat[param1:setting1+option1+param2:setting2]
-func explodeFieldRange(fieldRange string) (first, last int) {
-
-	switch {
-	case integerOnly.MatchString(fieldRange):
-		int1 := I(integerOnly.FindStringSubmatch(fieldRange)[1])
-		first, last = int1, int1
-	case dashInteger.MatchString(fieldRange):
-		int1 := I(dashInteger.FindStringSubmatch(fieldRange)[1])
-		first, last = 1, int1
-	case integerDash.MatchString(fieldRange):
-		int1 := I(integerDash.FindStringSubmatch(fieldRange)[1])
-		first, last = int1, 0
-	case integerDashInteger.MatchString(fieldRange):
-		first = I(integerDashInteger.FindStringSubmatch(fieldRange)[1])
-		last = I(integerDashInteger.FindStringSubmatch(fieldRange)[2])
-	case caretInteger.MatchString(fieldRange):
-		int1 := I(caretInteger.FindStringSubmatch(fieldRange)[1])
-		first, last = -int1, -int1
-	case integerColonAnything.MatchString(fieldRange):
-		int1 := I(integerColonAnything.FindStringSubmatch(fieldRange)[1])
-		first, last = int1, int1
-	default:
-		panic(fieldRange)
-	}
-	return
-}
 
 func main() {
-	var (
-		wg         = new(sync.WaitGroup)
-		processors []FieldProcessor
-		emptySlice = []string{}
-	)
-
 	delimiter := flag.String("d", "\t", "Word delimiter")
 	fieldFlag := flag.String("f", "1-", "Field list")
-	channelBufferSize := flag.Int("b", 99, "Buffer size")
 	flag.Parse()
 
-	fieldList := strings.Split(*fieldFlag, ",")
-	fields := make([]string, len(fieldList))
+	var (
+		fields = strings.Split(*fieldFlag, ",")
+		fanOut []chan []string
+		fanIn  []chan []string
+		//p      = fmt.Println
+	)
 
-	for i, s := range fieldList {
-		fields[i] = s
-	}
-
-	for i, f := range fields {
-		first, last := explodeFieldRange(f)
-		processors = append(processors, FieldProcessor{
-			Input:  make(chan []string, *channelBufferSize),
-			Output: make(chan []string, *channelBufferSize),
-		})
-		processors[i].Run = func(in, out chan []string) {
-
-			for x := range in {
-				var start, end, lenx int
-				lenx = len(x)
-				// Quick escapes: empty input or not enough input for our range
-				switch {
-				case lenx == 0, first > lenx:
-					out <- emptySlice
-					continue
-				}
-				if first > 0 { // positive fields, possibly ranges
-					start = first - 1
-					if last == 0 {
-						end = lenx - 1
-					} else {
-						end = last - 1
-					}
-					if end > lenx-1 {
-						end = lenx - 1
-					}
-					//p(start, end, lenx)
-					out <- x[start : end+1]
-				} else { // negative/count-backwards fields, *not* ranges (yet!)
-					panic("Can't deal with count-back fields yet!")
-				}
-			}
-			close(out)
+	for _, f := range fields {
+		fp, ok := jolsat.NewFieldProcessor(f)
+		switch ok {
+		case true:
+			toFP := make(chan []string, 100)
+			fromFP := make(chan []string, 100)
+			fanIn = append(fanIn, fromFP)
+			fanOut = append(fanOut, toFP)
+			go fp.Run(toFP, fromFP)
+		case false:
+			panic("Couldn't make an FP with spec '" + f + "'")
 		}
-		go processors[i].Run(processors[i].Input, processors[i].Output)
 	}
 
-	wg.Add(1)
-	go func(fp []FieldProcessor, allDone *sync.WaitGroup) {
-		for {
-			for i, f := range fp {
-				output, open := <-f.Output
-				if !open {
-					allDone.Done()
-					return
-				}
-				if i > 0 && len(output) > 0 {
-					fmt.Print(*delimiter)
-				}
-				fmt.Print(strings.Join(output, *delimiter))
+	go func(r io.Reader, receivers []chan []string, delimiter string) {
+		scanner := bufio.NewScanner(r)
+
+		for scanner.Scan() {
+			tokens := strings.Split(scanner.Text(), delimiter)
+			for _, r := range receivers {
+				r <- tokens
 			}
+		}
+		for _, r := range receivers {
+			close(r)
+		}
+	}(os.Stdin, fanOut, *delimiter)
+
+	var output []string
+	for open := true; open; {
+		for i, s := range fanIn {
+			output, open = <-s
+			if !open {
+				break
+			}
+			if i > 0 && len(output) > 0 {
+				fmt.Print(*delimiter)
+			}
+			fmt.Print(strings.Join(output, *delimiter))
+		}
+		if open {
 			fmt.Print("\n")
 		}
-	}(processors, wg)
-
-	scanner := bufio.NewScanner(os.Stdin)
-
-	var tokens []string
-	for scanner.Scan() {
-		tokens = strings.Split(scanner.Text(), *delimiter)
-		for _, processor := range processors {
-			processor.Input <- tokens
-		}
 	}
-
-	for _, processor := range processors {
-		close(processor.Input)
-	}
-
-	wg.Wait()
 }
