@@ -7,8 +7,9 @@ jolsat:	cmd/jolsat/jolsat.go
 
 release: BUILD_FLAGS=-ldflags="-s -w"
 release: clean test
+	mv jolsat jolsat_linux_64bit
 
 build: jolsat
 
 clean:
-	rm -f jolsat
+	rm -f jolsat jolsat_linux_64bit
