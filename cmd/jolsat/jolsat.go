@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/jpluscplusm/jolsat/internal/jolsat"
@@ -15,6 +16,8 @@ func main() {
 	delimiter := flag.String("d", "\t", "Word delimiter")
 	fieldFlag := flag.String("f", "1-", "Field list")
 	flag.Parse()
+
+	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	var (
 		fields = strings.Split(*fieldFlag, ",")
